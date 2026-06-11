@@ -44,7 +44,6 @@
 
 struct Solution;
 
-// TODO: stuck
 // 0  => 0    -> 0
 // 1  => 1    -> 1
 // 2  => 10   -> 1
@@ -68,7 +67,7 @@ impl Solution {
         bits.push(0);
 
         for i in 1..n + 1 {
-            bits.push(bits[(i / 2) as usize] + i % 2);
+            bits.push(bits[(i >> 1) as usize] + (i & 1));
         }
 
         bits
