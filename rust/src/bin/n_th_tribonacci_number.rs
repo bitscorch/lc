@@ -45,20 +45,20 @@ struct Solution;
 //
 // T_3 = t_0 + 1 + 1 = 2
 // T_4 = 1 + 1 + 2 = 4
-// T_5 = 1 + 1 + 2 = 4
+// T_5 = 1 + 2 + 4 = 4
 impl Solution {
     pub fn tribonacci(n: i32) -> i32 {
-        if n == 0 {
-            return 0;
-        } else if n == 1 || n == 2 {
-            return 1;
-        };
-
-        let (mut a, mut b, mut c) = (0, 1, 1);
-        for _ in 2..n {
-            (a, b, c) = (b, c, a + b + c);
+        match n {
+            0 => 0,
+            1 | 2 => 1,
+            _ => {
+                let (mut a, mut b, mut c) = (0, 1, 1);
+                for _ in 2..n {
+                    (a, b, c) = (b, c, a + b + c);
+                }
+                c
+            }
         }
-        c
     }
 }
 
