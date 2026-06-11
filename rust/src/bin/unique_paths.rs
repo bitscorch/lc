@@ -58,21 +58,21 @@ struct Solution;
 // }
 //
 // This is a bit too stack heavy
+//
+// [1, 1, 1, 1, 1, 1, 1]
+// [1, 2, 3, 4, 5, 6, 7]
+// [1, 3, 6, 10, 15, 21, 28]
 impl Solution {
     pub fn unique_paths(m: i32, n: i32) -> i32 {
-        let mut dp = vec![vec![0; n as usize]; m as usize];
+        let mut dp = vec![1; n as usize];
 
-        for i in 0..m as usize {
-            for j in 0..n as usize {
-                dp[i][j] = match (i, j) {
-                    (0, _) => 1,
-                    (_, 0) => 1,
-                    _ => dp[i - 1][j] + dp[i][j - 1],
-                }
+        for _ in 1..m as usize {
+            for j in 1..n as usize {
+                dp[j] += dp[j - 1];
             }
         }
 
-        dp[(m - 1) as usize][(n - 1) as usize]
+        dp[(n - 1) as usize]
     }
 }
 
