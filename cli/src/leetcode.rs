@@ -118,8 +118,8 @@ impl Question {
     }
 }
 
-/// LeetCode session credentials, read from gitignored files at the repo root.
-/// Both are cookie values you copy from a logged-in browser session.
+/// LeetCode session credentials. Pulled live from a logged-in Brave session
+/// when possible, otherwise from gitignored files at the repo root.
 pub struct Credentials {
     /// The `LEETCODE_SESSION` cookie (a long JWT).
     session: String,
@@ -128,8 +128,34 @@ pub struct Credentials {
 }
 
 impl Credentials {
-    /// Load from `.session` (LEETCODE_SESSION) and `.session.csrf` (csrftoken).
+    /// Load credentials: first try reading live cookies straight from Brave,
+    /// then fall back to the `.session` / `.session.csrf` files. The browser
+    /// path means you never have to copy-paste cookies as long as you're logged
+    /// in to leetcode.com in Brave.
     pub fn load(root: &Path) -> Result<Self> {
+        match Self::from_brave() {
+            Ok(creds) => Ok(creds),
+            Err(browser_err) => Self::load_from_files(root).map_err(|file_err| {
+                file_err.context(format!("Couldn't read cookies from Brave either: {browser_err}"))
+            }),
+        }
+    }
+
+    /// Read the LeetCode cookies directly from a logged-in Brave session.
+    fn from_brave() -> Result<Self> {
+        let cookies = rookie::brave(Some(vec!["leetcode.com".into()]))
+            .map_err(|e| anyhow::anyhow!("reading Brave cookies failed: {e}"))?;
+        let find = |name: &str| cookies.iter().find(|c| c.name == name).map(|c| c.value.clone());
+        Ok(Self {
+            session: find("LEETCODE_SESSION").context(
+                "LEETCODE_SESSION cookie not found in Brave — log in to leetcode.com first",
+            )?,
+            csrf: find("csrftoken").context("csrftoken cookie not found in Brave")?,
+        })
+    }
+
+    /// Load from `.session` (LEETCODE_SESSION) and `.session.csrf` (csrftoken).
+    fn load_from_files(root: &Path) -> Result<Self> {
         Ok(Self {
             session: read_token(&root.join(".session"), "LEETCODE_SESSION")?,
             csrf: read_token(&root.join(".session.csrf"), "csrftoken")?,
