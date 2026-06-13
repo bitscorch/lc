@@ -85,39 +85,14 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(
-            2,
-            Solution::unique_paths_with_obstacles(vec![
-                vec![0, 0, 0],
-                vec![0, 1, 0],
-                vec![0, 0, 0]
-            ])
-        );
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(
-            1,
-            Solution::unique_paths_with_obstacles(vec![vec![0, 1], vec![0, 0]])
-        );
-    }
-
-    #[test]
-    fn obstacle_on_top_row() {
-        assert_eq!(
-            0,
-            Solution::unique_paths_with_obstacles(vec![vec![0, 1, 0]])
-        );
-    }
-
-    #[test]
-    fn start_blocked() {
-        assert_eq!(0, Solution::unique_paths_with_obstacles(vec![vec![1]]));
+    #[rstest]
+    #[case(vec![vec![0, 0, 0], vec![0, 1, 0], vec![0, 0, 0]], 2)]
+    #[case(vec![vec![0, 1], vec![0, 0]], 1)]
+    #[case(vec![vec![0, 1, 0]], 0)]
+    #[case(vec![vec![1]], 0)]
+    fn cases(#[case] obstacle_grid: Vec<Vec<i32>>, #[case] expected: i32) {
+        assert_eq!(expected, Solution::unique_paths_with_obstacles(obstacle_grid));
     }
 }

@@ -71,24 +71,13 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(
-            6,
-            Solution::max_sub_array(vec![-2, 1, -3, 4, -1, 2, 1, -5, 4])
-        );
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(1, Solution::max_sub_array(vec![1]));
-    }
-
-    #[test]
-    fn case_3() {
-        assert_eq!(23, Solution::max_sub_array(vec![5, 4, -1, 7, 8]));
+    #[rstest]
+    #[case(vec![-2, 1, -3, 4, -1, 2, 1, -5, 4], 6)]
+    #[case(vec![1], 1)]
+    #[case(vec![5, 4, -1, 7, 8], 23)]
+    fn cases(#[case] nums: Vec<i32>, #[case] expected: i32) {
+        assert_eq!(expected, Solution::max_sub_array(nums));
     }
 }

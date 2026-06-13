@@ -62,19 +62,13 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn case_1() {
-        assert_eq!(1, Solution::fib(2));
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(2, Solution::fib(3));
-    }
-
-    #[test]
-    fn case_3() {
-        assert_eq!(3, Solution::fib(4));
+    #[rstest]
+    #[case(2, 1)]
+    #[case(3, 2)]
+    #[case(4, 3)]
+    fn cases(#[case] n: i32, #[case] expected: i32) {
+        assert_eq!(expected, Solution::fib(n));
     }
 }

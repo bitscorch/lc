@@ -75,19 +75,12 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(15, Solution::min_cost_climbing_stairs(vec![10, 15, 20]));
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(
-            6,
-            Solution::min_cost_climbing_stairs(vec![1, 100, 1, 1, 1, 100, 1, 1, 100, 1])
-        );
+    #[rstest]
+    #[case(vec![10, 15, 20], 15)]
+    #[case(vec![1, 100, 1, 1, 1, 100, 1, 1, 100, 1], 6)]
+    fn cases(#[case] cost: Vec<i32>, #[case] expected: i32) {
+        assert_eq!(expected, Solution::min_cost_climbing_stairs(cost));
     }
 }

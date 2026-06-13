@@ -72,21 +72,13 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(2, Solution::max_repeating("ababc".into(), "ab".into()));
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(1, Solution::max_repeating("ababc".into(), "ba".into()));
-    }
-
-    #[test]
-    fn case_3() {
-        assert_eq!(0, Solution::max_repeating("ababc".into(), "ac".into()));
+    #[rstest]
+    #[case("ababc".to_string(), "ab".to_string(), 2)]
+    #[case("ababc".to_string(), "ba".to_string(), 1)]
+    #[case("ababc".to_string(), "ac".to_string(), 0)]
+    fn cases(#[case] sequence: String, #[case] word: String, #[case] expected: i32) {
+        assert_eq!(expected, Solution::max_repeating(sequence, word));
     }
 }

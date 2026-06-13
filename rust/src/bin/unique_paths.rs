@@ -81,16 +81,12 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(28, Solution::unique_paths(3, 7));
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(3, Solution::unique_paths(3, 2));
+    #[rstest]
+    #[case(3, 7, 28)]
+    #[case(3, 2, 3)]
+    fn cases(#[case] m: i32, #[case] n: i32, #[case] expected: i32) {
+        assert_eq!(expected, Solution::unique_paths(m, n));
     }
 }

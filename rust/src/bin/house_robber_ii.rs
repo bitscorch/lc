@@ -81,21 +81,13 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(3, Solution::rob(vec![2, 3, 2]));
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(4, Solution::rob(vec![1, 2, 3, 1]));
-    }
-
-    #[test]
-    fn case_3() {
-        assert_eq!(3, Solution::rob(vec![1, 2, 3]));
+    #[rstest]
+    #[case(vec![2, 3, 2], 3)]
+    #[case(vec![1, 2, 3, 1], 4)]
+    #[case(vec![1, 2, 3], 3)]
+    fn cases(#[case] nums: Vec<i32>, #[case] expected: i32) {
+        assert_eq!(expected, Solution::rob(nums));
     }
 }

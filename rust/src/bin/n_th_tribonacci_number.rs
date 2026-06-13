@@ -69,16 +69,12 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    // Inputs are filled from LeetCode's examples; replace each `0` with the
-    // expected output (see the `Output:` lines in the description above).
-    #[test]
-    fn case_1() {
-        assert_eq!(4, Solution::tribonacci(4));
-    }
-
-    #[test]
-    fn case_2() {
-        assert_eq!(1389537, Solution::tribonacci(25));
+    #[rstest]
+    #[case(4, 4)]
+    #[case(25, 1389537)]
+    fn cases(#[case] n: i32, #[case] expected: i32) {
+        assert_eq!(expected, Solution::tribonacci(n));
     }
 }
