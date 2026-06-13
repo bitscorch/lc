@@ -152,30 +152,191 @@ fn cmd_desc(root: &Path, slug: &str) -> Result<()> {
     Ok(())
 }
 
-/// Build one `#[test] fn case_N()` per example. Inputs come from
-/// `example_testcases` (grouped by param count); the expected value is left as
-/// a `0` placeholder for the user to fill from the description's `Output:` lines.
+/// Emit a single `#[rstest]` function with one `#[case(...)]` per example.
+/// Inputs come from `example_testcases`, expected values from the description's
+/// `Output:` lines, all run through [`rustify`]. Param names/types and the
+/// return type are read from the starter signature so cases are strongly typed.
+/// Unparsed outputs become a `_` that won't compile, forcing a manual fix.
 fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
+    let outputs = question
+        .content
+        .as_deref()
+        .map(parse_outputs)
+        .unwrap_or_default();
+
+    let lines: Vec<&str> = question.example_testcases.lines().collect();
+
+    let Some(sig) = parse_signature(snippet) else {
+        return fallback_tests(snippet, &lines, &outputs, question.param_count());
+    };
+
+    let arity = sig.params.len().max(1);
+    let cases = lines
+        .chunks(arity)
+        .enumerate()
+        .map(|(i, args)| {
+            let mut vals: Vec<String> = args
+                .iter()
+                .zip(&sig.params)
+                .map(|(a, (_, ty))| coerce(rustify(a), ty))
+                .collect();
+            vals.push(
+                outputs
+                    .get(i)
+                    .map(|o| coerce(rustify(o), &sig.ret))
+                    .unwrap_or_else(|| "_".to_string()),
+            );
+            format!("    #[case({})]", vals.join(", "))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let mut fn_params: Vec<String> = sig
+        .params
+        .iter()
+        .map(|(name, ty)| format!("#[case] {name}: {ty}"))
+        .collect();
+    fn_params.push(format!("#[case] expected: {}", sig.ret));
+
+    let call_args = sig
+        .params
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    format!(
+        "    #[rstest]\n{cases}\n    fn cases({}) {{\n        \
+         assert_eq!(expected, Solution::{}({call_args}));\n    }}",
+        fn_params.join(", "),
+        sig.name,
+    )
+}
+
+/// Per-case `#[test]` fns, used when the starter signature can't be parsed for
+/// the parametrized form (e.g. exotic linked-list / tree types).
+fn fallback_tests(snippet: &str, lines: &[&str], outputs: &[String], param_count: usize) -> String {
     let fn_name = Regex::new(r"fn\s+(\w+)")
         .unwrap()
         .captures(snippet)
         .map_or_else(|| "solve".to_string(), |c| c[1].to_string());
 
-    let lines: Vec<&str> = question.example_testcases.lines().collect();
-
     lines
-        .chunks(question.param_count())
+        .chunks(param_count.max(1))
         .enumerate()
         .map(|(i, args)| {
+            let args = args.iter().map(|a| rustify(a)).collect::<Vec<_>>().join(", ");
+            let expected = outputs
+                .get(i)
+                .map(|o| rustify(o))
+                .unwrap_or_else(|| "_".to_string());
             format!(
                 "    #[test]\n    fn case_{}() {{\n        \
-                 assert_eq!(0, Solution::{fn_name}({}));\n    }}",
+                 assert_eq!({expected}, Solution::{fn_name}({args}));\n    }}",
                 i + 1,
-                args.join(", "),
             )
         })
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+/// The starter function's name, parameters (`name`, `type`), and return type.
+struct Signature {
+    name: String,
+    params: Vec<(String, String)>,
+    ret: String,
+}
+
+/// Parse `fn name(p: T, ...) -> Ret {` out of the starter snippet. Returns
+/// `None` if there's no `-> Ret` (e.g. an unparseable / unit-returning fn).
+fn parse_signature(snippet: &str) -> Option<Signature> {
+    let caps = Regex::new(r"fn\s+(\w+)\s*\(([^)]*)\)\s*->\s*([^{]+?)\s*\{")
+        .unwrap()
+        .captures(snippet)?;
+    Some(Signature {
+        name: caps[1].to_string(),
+        params: split_params(caps[2].trim()),
+        ret: caps[3].trim().to_string(),
+    })
+}
+
+/// Split a parameter list on top-level commas (commas inside `<...>` are part of
+/// a generic type, not separators), yielding `(name, type)` pairs.
+fn split_params(s: &str) -> Vec<(String, String)> {
+    let mut params = Vec::new();
+    let mut depth = 0i32;
+    let mut current = String::new();
+    for c in s.chars() {
+        match c {
+            '<' | '(' | '[' => {
+                depth += 1;
+                current.push(c);
+            }
+            '>' | ')' | ']' => {
+                depth -= 1;
+                current.push(c);
+            }
+            ',' if depth == 0 => {
+                push_param(&mut params, &current);
+                current.clear();
+            }
+            _ => current.push(c),
+        }
+    }
+    push_param(&mut params, &current);
+    params
+}
+
+fn push_param(params: &mut Vec<(String, String)>, raw: &str) {
+    if let Some((name, ty)) = raw.trim().split_once(':') {
+        params.push((name.trim().to_string(), ty.trim().to_string()));
+    }
+}
+
+/// Rewrite a LeetCode literal into Rust syntax. Currently the only fixup is
+/// array literals: `[1,2]` -> `vec![1,2]`, including nested arrays. Characters
+/// inside string literals are left untouched. Extend the `match` as new types
+/// come up (e.g. turning string literals into `.to_string()`).
+fn rustify(literal: &str) -> String {
+    let mut out = String::with_capacity(literal.len() + 8);
+    let mut in_string = false;
+    for c in literal.chars() {
+        match c {
+            '"' => {
+                in_string = !in_string;
+                out.push(c);
+            }
+            '[' if !in_string => out.push_str("vec!["),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Type-directed fixups on a rustified literal. When the target type involves
+/// `String`, append `.to_string()` to every `"..."` literal — so a `String`
+/// param gets `"abc".to_string()` and a `Vec<String>` gets
+/// `vec!["a".to_string(), "b".to_string()]`. Other types pass through unchanged.
+fn coerce(value: String, ty: &str) -> String {
+    if ty.contains("String") {
+        Regex::new(r#""[^"]*""#)
+            .unwrap()
+            .replace_all(&value, |c: &regex::Captures| format!("{}.to_string()", &c[0]))
+            .into_owned()
+    } else {
+        value
+    }
+}
+
+/// Pull the `Output:` value out of each worked example in the (HTML) problem
+/// description, in order, to use as expected values in the generated tests.
+fn parse_outputs(content: &str) -> Vec<String> {
+    let md = html2md::parse_html(content);
+    Regex::new(r"(?im)^\s*\**\s*output\**\s*:\**\s*(.+?)\s*$")
+        .unwrap()
+        .captures_iter(&md)
+        .map(|c| c[1].trim().trim_matches('`').trim().to_string())
+        .collect()
 }
 
 fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
@@ -203,6 +364,11 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
                 fs::create_dir_all(&lang_dir)?;
                 Command::new("cargo")
                     .args(["init", "--lib", "--name", "lc", "--vcs", "none"])
+                    .current_dir(&lang_dir)
+                    .status()?;
+                // rstest powers the parametrized test cases we generate.
+                Command::new("cargo")
+                    .args(["add", "rstest", "--dev"])
                     .current_dir(&lang_dir)
                     .status()?;
                 fs::create_dir_all(&bin_dir)?;
@@ -279,11 +445,11 @@ fn extract_solution(source: &str) -> String {
 
 fn cmd_submit(root: &Path, slug: &str, language: Language) -> Result<()> {
     let file_path = match language {
-        Language::Rust => root
-            .join("rust")
-            .join("src")
-            .join("bin")
-            .join(format!("{}.{}", file_stem(slug), language.ext())),
+        Language::Rust => root.join("rust").join("src").join("bin").join(format!(
+            "{}.{}",
+            file_stem(slug),
+            language.ext()
+        )),
         Language::Python => bail!("Python submit not implemented yet"),
     };
     if !file_path.exists() {
@@ -370,5 +536,54 @@ fn main() -> Result<()> {
         Commands::New { slug, language } => cmd_new(&root, &slug, language),
         Commands::Desc { slug } => cmd_desc(&root, &slug),
         Commands::Submit { slug, language } => cmd_submit(&root, &slug, language),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("[1,2,3]", "vec![1,2,3]")]
+    #[case("[[1],[2,3]]", "vec![vec![1],vec![2,3]]")]
+    #[case("9", "9")]
+    // brackets inside a string literal are left alone
+    #[case("\"a[b]\"", "\"a[b]\"")]
+    fn rustify_arrays_to_vecs(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(rustify(input), expected);
+    }
+
+    #[rstest]
+    #[case("\"abc\"", "String", "\"abc\".to_string()")]
+    #[case("vec![\"a\",\"b\"]", "Vec<String>", "vec![\"a\".to_string(),\"b\".to_string()]")]
+    // non-String types are untouched
+    #[case("vec![1,2]", "Vec<i32>", "vec![1,2]")]
+    #[case("5", "i32", "5")]
+    fn coerce_string_types(#[case] value: &str, #[case] ty: &str, #[case] expected: &str) {
+        assert_eq!(coerce(value.to_string(), ty), expected);
+    }
+
+    #[test]
+    fn parse_outputs_in_order() {
+        let html = "<pre><strong>Input:</strong> n = 2\n\
+                    <strong>Output:</strong> 2</pre>\
+                    <pre><strong>Output:</strong> [0,1,1]</pre>";
+        assert_eq!(parse_outputs(html), vec!["2", "[0,1,1]"]);
+    }
+
+    #[test]
+    fn signature_with_generic_params() {
+        let snippet = "impl Solution {\n    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {\n    }\n}";
+        let sig = parse_signature(snippet).unwrap();
+        assert_eq!(sig.name, "two_sum");
+        assert_eq!(sig.ret, "Vec<i32>");
+        assert_eq!(
+            sig.params,
+            vec![
+                ("nums".to_string(), "Vec<i32>".to_string()),
+                ("target".to_string(), "i32".to_string()),
+            ]
+        );
     }
 }
