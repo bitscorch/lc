@@ -67,6 +67,7 @@ mod tests {
     #[rstest]
     #[case(2, 3, 10)]
     #[case(5, 1, 0)]
+    #[case(8, 3, 18)]
     fn cases(#[case] n: i32, #[case] k: i32, #[case] expected: i32) {
         assert_eq!(expected, Solution::sum_of_good_integers(n, k));
     }
