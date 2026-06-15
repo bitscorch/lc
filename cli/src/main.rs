@@ -96,9 +96,15 @@ fn wrap_prose(md: &str, width: usize) -> String {
             continue;
         }
 
+        // Only real bullets (`* `/`- `/`+ ` with a space) count as list items;
+        // `**bold**` prose like `**Follow-up:**` should wrap, not be left long.
+        let is_list_or_block = trimmed.starts_with("* ")
+            || trimmed.starts_with("- ")
+            || trimmed.starts_with("+ ")
+            || trimmed.starts_with(['>', '#', '|']);
         let is_prose = !in_code
             && !line.is_empty()
-            && !trimmed.starts_with(['*', '-', '>', '#', '|'])
+            && !is_list_or_block
             && !trimmed.chars().next().is_some_and(|c| c.is_ascii_digit());
 
         if is_prose {
