@@ -176,6 +176,15 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
         return fallback_tests(snippet, &lines, &outputs, question.param_count());
     };
 
+    // Linked-list types are tested as `Vec<i32>`, bridged with the lc helpers.
+    let param_repr: Vec<(String, &str, &str)> =
+        sig.params.iter().map(|(_, ty)| test_repr(ty)).collect();
+    let (expected_ty, ret_open, ret_close) = if sig.ret.contains("ListNode") {
+        ("Vec<i32>".to_string(), "list_to_vec(", ")")
+    } else {
+        (sig.ret.clone(), "", "")
+    };
+
     let arity = sig.params.len().max(1);
     let cases = lines
         .chunks(arity)
@@ -183,13 +192,13 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
         .map(|(i, args)| {
             let mut vals: Vec<String> = args
                 .iter()
-                .zip(&sig.params)
-                .map(|(a, (_, ty))| coerce(rustify(a), ty))
+                .zip(&param_repr)
+                .map(|(a, (disp, _, _))| coerce(rustify(a), disp))
                 .collect();
             vals.push(
                 outputs
                     .get(i)
-                    .map(|o| coerce(rustify(o), &sig.ret))
+                    .map(|o| coerce(rustify(o), &expected_ty))
                     .unwrap_or_else(|| "_".to_string()),
             );
             format!("    #[case({})]", vals.join(", "))
@@ -200,23 +209,60 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
     let mut fn_params: Vec<String> = sig
         .params
         .iter()
-        .map(|(name, ty)| format!("#[case] {name}: {ty}"))
+        .zip(&param_repr)
+        .map(|((name, _), (disp, _, _))| format!("#[case] {name}: {disp}"))
         .collect();
-    fn_params.push(format!("#[case] expected: {}", sig.ret));
+    fn_params.push(format!("#[case] expected: {expected_ty}"));
 
     let call_args = sig
         .params
         .iter()
-        .map(|(name, _)| name.as_str())
+        .zip(&param_repr)
+        .map(|((name, _), (_, open, close))| format!("{open}{name}{close}"))
         .collect::<Vec<_>>()
         .join(", ");
 
     format!(
         "    #[rstest]\n{cases}\n    fn cases({}) {{\n        \
-         assert_eq!(expected, Solution::{}({call_args}));\n    }}",
+         assert_eq!(expected, {ret_open}Solution::{}({call_args}){ret_close});\n    }}",
         fn_params.join(", "),
         sig.name,
     )
+}
+
+/// How a param/return type appears in the generated test: its display type plus
+/// a wrapper to bridge a value to it. Linked lists are tested as `Vec<i32>` and
+/// built with `vec_to_list(...)`; everything else passes through unchanged.
+fn test_repr(ty: &str) -> (String, &'static str, &'static str) {
+    if ty.contains("ListNode") {
+        ("Vec<i32>".to_string(), "vec_to_list(", ")")
+    } else {
+        (ty.to_string(), "", "")
+    }
+}
+
+/// The `use lc::{...}` line a test module needs: `vec_to_list` when any param is
+/// a linked list, `list_to_vec` when the return is. Empty when neither applies.
+fn test_helper_imports(snippet: &str) -> String {
+    let Some(sig) = parse_signature(snippet) else {
+        return String::new();
+    };
+    let mut helpers = Vec::new();
+    if sig.params.iter().any(|(_, ty)| ty.contains("ListNode")) {
+        helpers.push("vec_to_list");
+    }
+    if sig.ret.contains("ListNode") {
+        helpers.push("list_to_vec");
+    }
+    if helpers.is_empty() {
+        return String::new();
+    }
+    helpers.sort();
+    if helpers.len() == 1 {
+        format!("    use lc::{};\n", helpers[0])
+    } else {
+        format!("    use lc::{{{}}};\n", helpers.join(", "))
+    }
 }
 
 /// Per-case `#[test]` fns, used when the starter signature can't be parsed for
@@ -256,9 +302,17 @@ struct Signature {
 /// Parse `fn name(p: T, ...) -> Ret {` out of the starter snippet. Returns
 /// `None` if there's no `-> Ret` (e.g. an unparseable / unit-returning fn).
 fn parse_signature(snippet: &str) -> Option<Signature> {
+    // Strip line comments first so the commented-out `ListNode::new` that
+    // LeetCode ships in linked-list starters isn't matched instead of the real
+    // solution function.
+    let code: String = snippet
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let caps = Regex::new(r"fn\s+(\w+)\s*\(([^)]*)\)\s*->\s*([^{]+?)\s*\{")
         .unwrap()
-        .captures(snippet)?;
+        .captures(&code)?;
     Some(Signature {
         name: caps[1].to_string(),
         params: split_params(caps[2].trim()),
@@ -417,6 +471,18 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
 
     let tests = generate_tests(&question, &snippet.code);
 
+    // Problems using LeetCode's custom types (ListNode, etc.) need our local
+    // definitions in scope. The type import goes ABOVE `struct Solution;` so
+    // `extract_solution` (which keeps only what's after the struct) drops it from
+    // submissions for free — LeetCode provides the type itself. Test-only helper
+    // imports go inside the test module.
+    let imports = if snippet.code.contains("ListNode") {
+        "use lc::ListNode;\n\n"
+    } else {
+        ""
+    };
+    let test_imports = test_helper_imports(&snippet.code);
+
     let template = include_str!("../templates/rust.rs")
         .replace("{{number}}", &question.question_frontend_id)
         .replace("{{title}}", &question.title)
@@ -424,6 +490,8 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
         .replace("{{tags}}", &tags)
         .replace("{{slug}}", &question.title_slug)
         .replace("{{description}}", &description)
+        .replace("{{imports}}", imports)
+        .replace("{{test_imports}}", &test_imports)
         .replace("{{snippet}}", &snippet.code)
         .replace("{{tests}}", &tests);
 

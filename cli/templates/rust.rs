@@ -4,7 +4,7 @@
 //!
 {{description}}
 
-struct Solution;
+{{imports}}struct Solution;
 
 {{snippet}}
 
@@ -13,7 +13,7 @@ fn main() {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::rstest;
+{{test_imports}}    use rstest::rstest;
 
 {{tests}}
 }
