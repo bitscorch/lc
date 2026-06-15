@@ -66,8 +66,8 @@ mod tests {
     #[rstest]
     #[case(vec!["e", "a", "b"], vec![0, 0, 1], vec!["e", "b"])]
     #[case(vec!["a", "b", "c", "d"], vec![1, 0, 1, 1], vec!["a", "b", "c"])]
-    #[case(vec!["a"], vec![0], vec!["a"])] // single element
-    #[case(vec!["x", "y"], vec![1, 1], vec!["x"])] // all same group → only the first
+    #[case(vec!["a"], vec![0], vec!["a"])]
+    #[case(vec!["x", "y"], vec![1, 1], vec!["x"])]
     fn cases(#[case] words: Vec<&str>, #[case] groups: Vec<i32>, #[case] expected: Vec<&str>) {
         let words = words.into_iter().map(str::to_string).collect();
         assert_eq!(Solution::get_longest_subsequence(words, groups), expected);
