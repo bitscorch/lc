@@ -176,13 +176,26 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
         return fallback_tests(snippet, &lines, &outputs, question.param_count());
     };
 
-    // Linked-list types are tested as `Vec<i32>`, bridged with the lc helpers.
-    let param_repr: Vec<(String, &str, &str)> =
-        sig.params.iter().map(|(_, ty)| test_repr(ty)).collect();
-    let (expected_ty, ret_open, ret_close) = if sig.ret.contains("ListNode") {
-        ("Vec<i32>".to_string(), "list_to_vec(", ")")
-    } else {
-        (sig.ret.clone(), "", "")
+    // Per-param: the test-fn display type + the call-site expression (bridged
+    // custom types are taken as plain Vecs and converted in the call).
+    let params: Vec<(String, String)> = sig
+        .params
+        .iter()
+        .map(|(name, ty)| match bridge_for(ty) {
+            Some(b) => (b.display.to_string(), format!("{}{name})", b.wrap_in)),
+            None => (ty.clone(), name.clone()),
+        })
+        .collect();
+
+    // Return: expected display type + how the call is wrapped to compare as it.
+    let ret = bridge_for(&sig.ret);
+    let expected_ty = ret.map_or_else(|| sig.ret.clone(), |b| b.display.to_string());
+    let (ret_open, ret_close) = ret.map_or(("", ""), |b| (b.wrap_out, ")"));
+
+    // Turn a LeetCode literal into the `#[case]` value for a given type.
+    let value = |literal: &str, ty: &str| match bridge_for(ty) {
+        Some(b) => (b.build)(literal),
+        None => coerce(rustify(literal), ty),
     };
 
     let arity = sig.params.len().max(1);
@@ -192,13 +205,13 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
         .map(|(i, args)| {
             let mut vals: Vec<String> = args
                 .iter()
-                .zip(&param_repr)
-                .map(|(a, (disp, _, _))| coerce(rustify(a), disp))
+                .zip(&sig.params)
+                .map(|(a, (_, ty))| value(a, ty))
                 .collect();
             vals.push(
                 outputs
                     .get(i)
-                    .map(|o| coerce(rustify(o), &expected_ty))
+                    .map(|o| value(o, &sig.ret))
                     .unwrap_or_else(|| "_".to_string()),
             );
             format!("    #[case({})]", vals.join(", "))
@@ -206,19 +219,16 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n");
 
-    let mut fn_params: Vec<String> = sig
-        .params
+    let mut fn_params: Vec<String> = params
         .iter()
-        .zip(&param_repr)
-        .map(|((name, _), (disp, _, _))| format!("#[case] {name}: {disp}"))
+        .zip(&sig.params)
+        .map(|((disp, _), (name, _))| format!("#[case] {name}: {disp}"))
         .collect();
     fn_params.push(format!("#[case] expected: {expected_ty}"));
 
-    let call_args = sig
-        .params
+    let call_args = params
         .iter()
-        .zip(&param_repr)
-        .map(|((name, _), (_, open, close))| format!("{open}{name}{close}"))
+        .map(|(_, call)| call.as_str())
         .collect::<Vec<_>>()
         .join(", ");
 
@@ -230,19 +240,61 @@ fn generate_tests(question: &leetcode::Question, snippet: &str) -> String {
     )
 }
 
-/// How a param/return type appears in the generated test: its display type plus
-/// a wrapper to bridge a value to it. Linked lists are tested as `Vec<i32>` and
-/// built with `vec_to_list(...)`; everything else passes through unchanged.
-fn test_repr(ty: &str) -> (String, &'static str, &'static str) {
-    if ty.contains("ListNode") {
-        ("Vec<i32>".to_string(), "vec_to_list(", ")")
+/// How to test a LeetCode custom type via a plain Vec: the Vec type to use in
+/// the test, how to build the `#[case]` value, and the helpers that bridge into
+/// the real type (`wrap_in`) and back out for comparison (`wrap_out`).
+#[derive(Clone, Copy)]
+struct Bridge {
+    display: &'static str,
+    build: fn(&str) -> String,
+    wrap_in: &'static str,
+    wrap_out: &'static str,
+}
+
+fn bridge_for(ty: &str) -> Option<Bridge> {
+    if ty.contains("TreeNode") {
+        Some(Bridge {
+            display: "Vec<Option<i32>>",
+            build: optionify,
+            wrap_in: "vec_to_tree(",
+            wrap_out: "tree_to_vec(",
+        })
+    } else if ty.contains("ListNode") {
+        Some(Bridge {
+            display: "Vec<i32>",
+            build: rustify,
+            wrap_in: "vec_to_list(",
+            wrap_out: "list_to_vec(",
+        })
     } else {
-        (ty.to_string(), "", "")
+        None
     }
 }
 
-/// The `use lc::{...}` line a test module needs: `vec_to_list` when any param is
-/// a linked list, `list_to_vec` when the return is. Empty when neither applies.
+/// Turn LeetCode's tree array into a `Vec<Option<i32>>`: numbers become
+/// `Some(n)`, `null` becomes `None`. `[1,null,2]` -> `vec![Some(1), None, Some(2)]`.
+fn optionify(literal: &str) -> String {
+    let inner = literal.trim().trim_start_matches('[').trim_end_matches(']').trim();
+    if inner.is_empty() {
+        return "vec![]".to_string();
+    }
+    let elems: Vec<String> = inner
+        .split(',')
+        .map(|e| {
+            let e = e.trim();
+            if e == "null" {
+                "None".to_string()
+            } else {
+                format!("Some({e})")
+            }
+        })
+        .collect();
+    format!("vec![{}]", elems.join(", "))
+}
+
+/// The `use lc::{...}` line a test module needs: the `vec_to_*` builders for
+/// bridged params and the `*_to_vec` converters for a bridged return. Empty when
+/// no custom types are involved.
 fn test_helper_imports(snippet: &str) -> String {
     let Some(sig) = parse_signature(snippet) else {
         return String::new();
@@ -251,8 +303,14 @@ fn test_helper_imports(snippet: &str) -> String {
     if sig.params.iter().any(|(_, ty)| ty.contains("ListNode")) {
         helpers.push("vec_to_list");
     }
+    if sig.params.iter().any(|(_, ty)| ty.contains("TreeNode")) {
+        helpers.push("vec_to_tree");
+    }
     if sig.ret.contains("ListNode") {
         helpers.push("list_to_vec");
+    }
+    if sig.ret.contains("TreeNode") {
+        helpers.push("tree_to_vec");
     }
     if helpers.is_empty() {
         return String::new();
@@ -476,10 +534,17 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
     // `extract_solution` (which keeps only what's after the struct) drops it from
     // submissions for free — LeetCode provides the type itself. Test-only helper
     // imports go inside the test module.
-    let imports = if snippet.code.contains("ListNode") {
-        "use lc::ListNode;\n\n"
-    } else {
-        ""
+    let mut types: Vec<&str> = Vec::new();
+    if snippet.code.contains("ListNode") {
+        types.push("ListNode");
+    }
+    if snippet.code.contains("TreeNode") {
+        types.push("TreeNode");
+    }
+    let imports = match types.as_slice() {
+        [] => String::new(),
+        [one] => format!("use lc::{one};\n\n"),
+        many => format!("use lc::{{{}}};\n\n", many.join(", ")),
     };
     let test_imports = test_helper_imports(&snippet.code);
 
@@ -490,7 +555,7 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
         .replace("{{tags}}", &tags)
         .replace("{{slug}}", &question.title_slug)
         .replace("{{description}}", &description)
-        .replace("{{imports}}", imports)
+        .replace("{{imports}}", &imports)
         .replace("{{test_imports}}", &test_imports)
         .replace("{{snippet}}", &snippet.code)
         .replace("{{tests}}", &tests);
