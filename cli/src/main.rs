@@ -33,6 +33,7 @@ enum Commands {
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Debug)]
 enum Language {
     Rust,
+    #[value(name = "python3", alias = "python")]
     Python,
 }
 
@@ -274,7 +275,11 @@ fn bridge_for(ty: &str) -> Option<Bridge> {
 /// Turn LeetCode's tree array into a `Vec<Option<i32>>`: numbers become
 /// `Some(n)`, `null` becomes `None`. `[1,null,2]` -> `vec![Some(1), None, Some(2)]`.
 fn optionify(literal: &str) -> String {
-    let inner = literal.trim().trim_start_matches('[').trim_end_matches(']').trim();
+    let inner = literal
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim();
     if inner.is_empty() {
         return "vec![]".to_string();
     }
@@ -335,7 +340,11 @@ fn fallback_tests(snippet: &str, lines: &[&str], outputs: &[String], param_count
         .chunks(param_count.max(1))
         .enumerate()
         .map(|(i, args)| {
-            let args = args.iter().map(|a| rustify(a)).collect::<Vec<_>>().join(", ");
+            let args = args
+                .iter()
+                .map(|a| rustify(a))
+                .collect::<Vec<_>>()
+                .join(", ");
             let expected = outputs
                 .get(i)
                 .map(|o| rustify(o))
@@ -439,7 +448,9 @@ fn coerce(value: String, ty: &str) -> String {
     if ty.contains("String") {
         Regex::new(r#""[^"]*""#)
             .unwrap()
-            .replace_all(&value, |c: &regex::Captures| format!("{}.to_string()", &c[0]))
+            .replace_all(&value, |c: &regex::Captures| {
+                format!("{}.to_string()", &c[0])
+            })
             .into_owned()
     } else {
         value
@@ -493,7 +504,27 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
             }
             (lang_dir, bin_dir)
         }
-        Language::Python => bail!("Python scaffolding not implemented yet"),
+        Language::Python => {
+            let lang_dir = root.join("python");
+            fs::create_dir_all(&lang_dir)?;
+            // Drop in the shared helpers + an empty conftest (so pytest puts the
+            // dir on sys.path and `from lc_helpers import ...` resolves) once.
+            let helpers = lang_dir.join("lc_helpers.py");
+            if !helpers.exists() {
+                fs::write(&helpers, include_str!("../templates/lc_helpers.py"))?;
+            }
+            let conftest = lang_dir.join("conftest.py");
+            if !conftest.exists() {
+                fs::write(&conftest, "")?;
+            }
+            // basedpyright config: use the local .venv (so `pytest` resolves)
+            // and treat this dir as a source root (so `lc_helpers` resolves).
+            let pyrightconfig = lang_dir.join("pyrightconfig.json");
+            if !pyrightconfig.exists() {
+                fs::write(&pyrightconfig, include_str!("../templates/pyrightconfig.json"))?;
+            }
+            (lang_dir.clone(), lang_dir)
+        }
     };
     let _ = lang_dir;
 
@@ -503,6 +534,18 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
         return Ok(());
     }
 
+    let template = match language {
+        Language::Rust => render_rust(&question, &snippet.code),
+        Language::Python => render_python(&question, &snippet.code),
+    };
+
+    fs::write(&file_path, template)?;
+    println!("Created {}", file_path.display());
+    Ok(())
+}
+
+/// Render a scaffolded Rust solution file from the fetched problem.
+fn render_rust(question: &leetcode::Question, snippet: &str) -> String {
     let tags = question
         .topic_tags
         .iter()
@@ -527,7 +570,7 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
         None => "//! (no public description)".to_string(),
     };
 
-    let tests = generate_tests(&question, &snippet.code);
+    let tests = generate_tests(question, snippet);
 
     // Problems using LeetCode's custom types (ListNode, etc.) need our local
     // definitions in scope. The type import goes ABOVE `struct Solution;` so
@@ -535,10 +578,10 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
     // submissions for free — LeetCode provides the type itself. Test-only helper
     // imports go inside the test module.
     let mut types: Vec<&str> = Vec::new();
-    if snippet.code.contains("ListNode") {
+    if snippet.contains("ListNode") {
         types.push("ListNode");
     }
-    if snippet.code.contains("TreeNode") {
+    if snippet.contains("TreeNode") {
         types.push("TreeNode");
     }
     let imports = match types.as_slice() {
@@ -546,9 +589,9 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
         [one] => format!("use lc::{one};\n\n"),
         many => format!("use lc::{{{}}};\n\n", many.join(", ")),
     };
-    let test_imports = test_helper_imports(&snippet.code);
+    let test_imports = test_helper_imports(snippet);
 
-    let template = include_str!("../templates/rust.rs")
+    include_str!("../templates/rust.rs")
         .replace("{{number}}", &question.question_frontend_id)
         .replace("{{title}}", &question.title)
         .replace("{{difficulty}}", &question.difficulty)
@@ -557,12 +600,183 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
         .replace("{{description}}", &description)
         .replace("{{imports}}", &imports)
         .replace("{{test_imports}}", &test_imports)
-        .replace("{{snippet}}", &snippet.code)
-        .replace("{{tests}}", &tests);
+        .replace("{{snippet}}", snippet)
+        .replace("{{tests}}", &tests)
+}
 
-    fs::write(&file_path, template)?;
-    println!("Created {}", file_path.display());
-    Ok(())
+/// Render a scaffolded Python solution file. Unlike Rust, LeetCode's JSON
+/// literals are nearly valid Python, so there's no `vec!`-style rewriting — the
+/// bridges only wrap the *call* (list_of/tree_of in, to_list/to_level out).
+fn render_python(question: &leetcode::Question, snippet: &str) -> String {
+    let tags = question
+        .topic_tags
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect::<Vec<_>>()
+        .join(" | ");
+
+    let header = format!(
+        "# {}. {}\n# {} | {}\n# https://leetcode.com/problems/{}/\n#\n",
+        question.question_frontend_id,
+        question.title,
+        question.difficulty,
+        tags,
+        question.title_slug,
+    );
+    let body = match &question.content {
+        Some(html) => wrap_prose(&clean_md(&html2md::parse_html(html)), 76)
+            .lines()
+            .map(|line| {
+                if line.is_empty() {
+                    "#".to_string()
+                } else {
+                    format!("# {line}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        None => "# (no public description)".to_string(),
+    };
+    let description = format!("{header}{body}");
+
+    let tests = generate_python_tests(question, snippet);
+
+    // Imports live ABOVE `class Solution:`, so `extract_python_solution` drops
+    // them on submit — LeetCode provides typing + ListNode/TreeNode itself.
+    let mut imports = String::from("import pytest\nfrom typing import Dict, List, Optional\n");
+    let mut items: Vec<&str> = Vec::new();
+    if snippet.contains("ListNode") {
+        items.extend(["ListNode", "list_of", "to_list"]);
+    }
+    if snippet.contains("TreeNode") {
+        items.extend(["TreeNode", "tree_of", "to_level"]);
+    }
+    if !items.is_empty() {
+        imports.push_str(&format!("from lc_helpers import {}\n", items.join(", ")));
+    }
+    imports.push('\n');
+
+    include_str!("../templates/python.py")
+        .replace("{{description}}", &description)
+        .replace("{{imports}}", &imports)
+        .replace("{{snippet}}", snippet)
+        .replace("{{tests}}", &tests)
+}
+
+/// Build a parametrized pytest `test_cases` from the worked examples, bridging
+/// ListNode/TreeNode params (and the return value) through the lc_helpers.
+fn generate_python_tests(question: &leetcode::Question, snippet: &str) -> String {
+    let outputs = question
+        .content
+        .as_deref()
+        .map(parse_outputs)
+        .unwrap_or_default();
+    let lines: Vec<&str> = question.example_testcases.lines().collect();
+
+    let Some(sig) = parse_py_signature(snippet) else {
+        return "# TODO: couldn't parse the signature — add tests manually".to_string();
+    };
+
+    let arity = sig.params.len().max(1);
+    let cases = lines
+        .chunks(arity)
+        .enumerate()
+        .map(|(i, args)| {
+            let mut vals: Vec<String> = args.iter().map(|a| pythonify(a)).collect();
+            // `...` (Ellipsis) as a placeholder: the assert fails loudly until
+            // the expected value is filled in by hand.
+            vals.push(
+                outputs
+                    .get(i)
+                    .map(|o| pythonify(o))
+                    .unwrap_or_else(|| "...".to_string()),
+            );
+            format!("        ({}),", vals.join(", "))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let mut header: Vec<&str> = sig.params.iter().map(|(n, _)| n.as_str()).collect();
+    header.push("expected");
+    let param_str = header.join(", ");
+
+    let call_args = sig
+        .params
+        .iter()
+        .map(|(name, ty)| py_wrap_in(ty, name))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let call = py_wrap_out(&sig.ret, &format!("Solution().{}({call_args})", sig.name));
+
+    format!(
+        "@pytest.mark.parametrize(\n    \"{param_str}\",\n    [\n{cases}\n    ],\n)\n\
+         def test_cases({param_str}):\n    assert {call} == expected"
+    )
+}
+
+/// Parse `def name(self, p: T, ...) -> Ret:` out of the Python starter snippet.
+fn parse_py_signature(snippet: &str) -> Option<Signature> {
+    let code: String = snippet
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let caps = Regex::new(r"def\s+(\w+)\s*\(\s*self\s*,?\s*([^)]*)\)\s*->\s*([^:]+?)\s*:")
+        .unwrap()
+        .captures(&code)?;
+    Some(Signature {
+        name: caps[1].to_string(),
+        params: split_params(caps[2].trim()),
+        ret: caps[3].trim().to_string(),
+    })
+}
+
+/// Wrap a call argument so a plain list literal becomes the real custom type.
+fn py_wrap_in(ty: &str, name: &str) -> String {
+    if ty.contains("TreeNode") {
+        format!("tree_of({name})")
+    } else if ty.contains("ListNode") {
+        format!("list_of({name})")
+    } else {
+        name.to_string()
+    }
+}
+
+/// Wrap the call so a custom-type return is serialized back to a list to compare.
+fn py_wrap_out(ret: &str, call: &str) -> String {
+    if ret.contains("TreeNode") {
+        format!("to_level({call})")
+    } else if ret.contains("ListNode") {
+        format!("to_list({call})")
+    } else {
+        call.to_string()
+    }
+}
+
+/// LeetCode JSON literals are nearly valid Python — just fix the keywords.
+fn pythonify(literal: &str) -> String {
+    Regex::new(r"\b(null|true|false)\b")
+        .unwrap()
+        .replace_all(literal, |c: &regex::Captures| match &c[0] {
+            "null" => "None",
+            "true" => "True",
+            _ => "False",
+        })
+        .into_owned()
+}
+
+/// The Python analogue of `extract_solution`: keep `class Solution:` and its
+/// body, dropping the imports above it and the pytest cases below.
+fn extract_python_solution(source: &str) -> String {
+    let body = match source.find("class Solution:") {
+        Some(i) => &source[i..],
+        None => source,
+    };
+    let end = body
+        .find("\n@pytest")
+        .or_else(|| body.find("\ndef test_"))
+        .unwrap_or(body.len());
+    body[..end].trim().to_string()
 }
 
 /// Carve the LeetCode-submittable code out of a scaffolded file: everything
@@ -589,7 +803,10 @@ fn cmd_submit(root: &Path, slug: &str, language: Language) -> Result<()> {
             file_stem(slug),
             language.ext()
         )),
-        Language::Python => bail!("Python submit not implemented yet"),
+        Language::Python => {
+            root.join("python")
+                .join(format!("{}.{}", file_stem(slug), language.ext()))
+        }
     };
     if !file_path.exists() {
         bail!(
@@ -600,7 +817,10 @@ fn cmd_submit(root: &Path, slug: &str, language: Language) -> Result<()> {
     }
 
     let source = fs::read_to_string(&file_path)?;
-    let code = extract_solution(&source);
+    let code = match language {
+        Language::Rust => extract_solution(&source),
+        Language::Python => extract_python_solution(&source),
+    };
 
     let creds = leetcode::Credentials::load(root)?;
     let question = leetcode::fetch_question(slug)?;
@@ -695,7 +915,11 @@ mod tests {
 
     #[rstest]
     #[case("\"abc\"", "String", "\"abc\".to_string()")]
-    #[case("vec![\"a\",\"b\"]", "Vec<String>", "vec![\"a\".to_string(),\"b\".to_string()]")]
+    #[case(
+        "vec![\"a\",\"b\"]",
+        "Vec<String>",
+        "vec![\"a\".to_string(),\"b\".to_string()]"
+    )]
     // non-String types are untouched
     #[case("vec![1,2]", "Vec<i32>", "vec![1,2]")]
     #[case("5", "i32", "5")]
