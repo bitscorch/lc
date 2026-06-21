@@ -67,16 +67,16 @@ from lc_helpers import ListNode, cyclic_list
 #         self.next = None
 
 
+# Floyd's turtoise and hare
 class Solution:
     def hasCycle(self, head: Optional[ListNode]) -> bool:
-        cache = set()
-        curr = head
+        slow = fast = head
 
-        while curr:
-            if curr in cache:
+        while slow and fast and fast.next:
+            slow = slow.next
+            fast = fast.next.next
+            if slow is fast:
                 return True
-            cache.add(curr)
-            curr = curr.next
 
         return False
 
