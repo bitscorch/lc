@@ -41,23 +41,15 @@ struct Solution;
 
 impl Solution {
     pub fn can_construct(ransom_note: String, magazine: String) -> bool {
-        const SIZE: usize = (b'z' - b'a' + 1) as usize;
-        let (mut a, mut b) = ([0; SIZE], [0; SIZE]);
-
-        for c in ransom_note.bytes() {
-            a[(c - b'a') as usize] += 1;
-        }
-
+        let mut counts = [0i32; 26];
         for c in magazine.bytes() {
-            b[(c - b'a') as usize] += 1;
+            counts[(c - b'a') as usize] += 1
         }
-
-        for i in 0..SIZE {
-            if b[i] - a[i] < 0 {
-                return false;
-            }
-        }
-        true
+        ransom_note.bytes().all(|c| {
+            let i = (c - b'a') as usize;
+            counts[i] -= 1;
+            counts[i] >= 0
+        })
     }
 }
 
