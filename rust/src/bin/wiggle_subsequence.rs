@@ -56,22 +56,17 @@ struct Solution;
 
 impl Solution {
     pub fn wiggle_max_length(nums: Vec<i32>) -> i32 {
-        let (mut up, mut down) = (vec![1; nums.len()], vec![1; nums.len()]);
+        let (mut up, mut down) = (1, 1);
 
         for i in 1..nums.len() {
-            let (curr, mut best_up, mut best_down) = (nums[i], 0, 0);
-            for j in 0..i {
-                if curr > nums[j] {
-                    best_up = best_up.max(down[j]);
-                } else if curr < nums[j] {
-                    best_down = best_down.max(up[j]);
-                }
+            if nums[i] > nums[i - 1] {
+                up = down + 1;
+            } else if nums[i] < nums[i - 1] {
+                down = up + 1;
             }
-            up[i] = 1 + best_up;
-            down[i] = 1 + best_down;
         }
 
-        *up.iter().chain(down.iter()).max().unwrap_or(&0)
+        up.max(down)
     }
 }
 
