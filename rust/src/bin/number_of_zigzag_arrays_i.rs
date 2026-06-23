@@ -1,4 +1,5 @@
 //! 3699. Number of ZigZag Arrays I
+//!
 //! Hard | Dynamic Programming | Prefix Sum
 //! https://leetcode.com/problems/number-of-zigzag-arrays-i/
 //!
@@ -72,28 +73,20 @@ impl Solution {
     pub fn zig_zag_arrays(n: i32, l: i32, r: i32) -> i32 {
         const M: i64 = 1_000_000_007;
         let cnt = (r - l + 1) as usize;
-        let (mut up, mut down) = (vec![1i64; cnt], vec![1i64; cnt]);
-        let (mut nup, mut ndown) = (vec![0i64; cnt], vec![0i64; cnt]);
+        let mut up = vec![1i64; cnt];
+        let mut next = vec![0i64; cnt];
 
         // O(n x m)
         for _ in 1..n {
-            let (mut pre, mut suf) = (0i64, 0i64);
-            for j in 0..cnt {
-                let k = cnt - 1 - j;
-                nup[j] = pre;
-                pre = (pre + down[j]) % M;
-                ndown[k] = suf;
-                suf = (suf + up[k]) % M
+            let mut acc = 0i64;
+            for (slot, &v) in next.iter_mut().zip(up.iter().rev()) {
+                *slot = acc;
+                acc = (acc + v) % M;
             }
-            std::mem::swap(&mut up, &mut nup);
-            std::mem::swap(&mut down, &mut ndown);
+            std::mem::swap(&mut up, &mut next);
         }
 
-        let mut ans = 0i64;
-        for j in 0..cnt {
-            ans = (ans + up[j] + down[j]) % M;
-        }
-        ans as i32
+        (2 * (up.iter().sum::<i64>() % M) % M) as i32
     }
 }
 
