@@ -73,6 +73,8 @@ impl Solution {
     pub fn zig_zag_arrays(n: i32, l: i32, r: i32) -> i32 {
         const M: i64 = 1_000_000_007;
         let cnt = (r - l + 1) as usize;
+        // down[j] == up[cnt-1-j]
+        // ans = sum(up) * 2
         let mut up = vec![1i64; cnt];
         let mut next = vec![0i64; cnt];
 
