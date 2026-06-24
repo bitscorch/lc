@@ -35,22 +35,29 @@
 
 struct Solution;
 
-use std::collections::HashMap;
-
+// [a, b, c, a, a, a]
+// a 1 0
+// a 0
+// c 1
+// c 0
+// a 1
+// a 2
 impl Solution {
     pub fn majority_element(nums: Vec<i32>) -> i32 {
-        let mut cnts = HashMap::new();
-        let n = nums.len();
+        let (mut ans, mut cnt) = (0, 0);
 
         for num in nums {
-            let cnt = cnts.entry(num).or_insert(0);
-            *cnt += 1;
-            if *cnt > (n / 2) as i32 {
-                return num;
+            if cnt == 0 {
+                ans = num;
+                cnt += 1;
+            } else if ans == num {
+                cnt += 1;
+            } else {
+                cnt -= 1;
             }
         }
 
-        unreachable!()
+        ans
     }
 }
 
