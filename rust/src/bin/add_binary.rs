@@ -30,36 +30,21 @@ struct Solution;
 
 impl Solution {
     pub fn add_binary(a: String, b: String) -> String {
-        let n = a.len().max(b.len());
         let mut ai = a.bytes().rev();
         let mut bi = b.bytes().rev();
 
-        let mut carry = b'0';
+        let mut carry = 0u8;
+        let mut ans = Vec::new();
 
-        let mut ans: Vec<u8> = (0..n)
-            .map(|_| {
-                let x = ai.next().unwrap_or(b'0') - b'0';
-                let y = bi.next().unwrap_or(b'0') - b'0';
-
-                let sum = x + y + carry - b'0';
-                if sum == 3 {
-                    carry = b'1';
-                    b'1'
-                } else if sum == 2 {
-                    carry = b'1';
-                    b'0'
-                } else if sum == 1 {
-                    carry = b'0';
-                    b'1'
-                } else {
-                    carry = b'0';
-                    b'0'
+        loop {
+            match (ai.next(), bi.next()) {
+                (None, None) if carry == 0 => break,
+                (x, y) => {
+                    let sum = x.map_or(0, |b| b - b'0') + y.map_or(0, |b| b - b'0') + carry;
+                    ans.push(b'0' + sum % 2);
+                    carry = sum / 2;
                 }
-            })
-            .collect();
-
-        if carry == b'1' {
-            ans.push(b'1')
+            }
         }
 
         ans.reverse();
