@@ -42,13 +42,12 @@ use std::collections::HashSet;
 
 impl Solution {
     pub fn contains_duplicate(nums: Vec<i32>) -> bool {
-        let mut cache = HashSet::new();
+        let mut cache = HashSet::with_capacity(nums.len());
 
         for num in nums {
-            if cache.contains(&num) {
+            if !cache.insert(num) {
                 return true;
             }
-            cache.insert(num);
         }
 
         false
