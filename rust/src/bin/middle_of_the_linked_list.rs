@@ -55,22 +55,16 @@ struct Solution;
 //   }
 // }
 impl Solution {
-    pub fn middle_node(head: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
-        let mut n = 0;
-        let mut curr = &head;
+    pub fn middle_node(mut head: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
+        let mut slow: *mut Option<Box<ListNode>> = &mut head;
+        let mut fast: *const Option<Box<ListNode>> = slow;
 
-        while let Some(node) = curr {
-            curr = &node.next;
-            n += 1;
+        while let Some(fnode) = unsafe { &*fast } {
+            let Some(fnext) = &fnode.next else { break };
+            fast = &fnext.next;
+            slow = unsafe { &mut (*slow).as_mut().unwrap_unchecked().next };
         }
-
-        let mut curr = head;
-
-        for _ in 0..(n / 2) {
-            curr = curr.unwrap().next;
-        }
-
-        curr
+        unsafe { (*slow).take() }
     }
 }
 
