@@ -55,8 +55,7 @@ struct Solution;
 impl Solution {
     pub fn insert(intervals: Vec<Vec<i32>>, new_interval: Vec<i32>) -> Vec<Vec<i32>> {
         let mut i = 0;
-        let (nl, nr) = (new_interval[0], new_interval[1]);
-        let (mut ol, mut or, mut ov) = (nl, nr, false);
+        let (mut ol, mut or) = (new_interval[0], new_interval[1]);
         let mut ans = Vec::with_capacity(intervals.len());
 
         while i < intervals.len() && intervals[i][1] < new_interval[0] {
@@ -64,11 +63,7 @@ impl Solution {
             i += 1;
         }
 
-        while i < intervals.len()
-            && (intervals[i][0] <= new_interval[0] && intervals[i][1] >= new_interval[0]
-                || intervals[i][0] >= new_interval[0] && intervals[i][1] <= new_interval[1]
-                || intervals[i][0] <= new_interval[1] && intervals[i][1] >= new_interval[1])
-        {
+        while i < intervals.len() && intervals[i][0] <= new_interval[1] {
             ol = ol.min(intervals[i][0]);
             or = or.max(intervals[i][1]);
             i += 1;
@@ -76,7 +71,7 @@ impl Solution {
 
         ans.push(vec![ol, or]);
 
-        while i < intervals.len() && intervals[i][0] > new_interval[1] {
+        while i < intervals.len() {
             ans.push(intervals[i].clone());
             i += 1;
         }
