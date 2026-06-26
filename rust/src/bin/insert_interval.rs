@@ -54,28 +54,20 @@ struct Solution;
 // G <= R && H >= R
 impl Solution {
     pub fn insert(intervals: Vec<Vec<i32>>, new_interval: Vec<i32>) -> Vec<Vec<i32>> {
-        let mut i = 0;
-        let (mut ol, mut or) = (new_interval[0], new_interval[1]);
-        let mut ans = Vec::with_capacity(intervals.len());
+        let (mut l, mut r) = (new_interval[0], new_interval[1]);
+        let mut ans = Vec::with_capacity(intervals.len() + 1);
+        let mut it = intervals.into_iter().peekable();
 
-        while i < intervals.len() && intervals[i][1] < new_interval[0] {
-            ans.push(intervals[i].clone());
-            i += 1;
+        while it.peek().is_some_and(|iv| iv[1] < l) {
+            ans.push(it.next().unwrap());
         }
-
-        while i < intervals.len() && intervals[i][0] <= new_interval[1] {
-            ol = ol.min(intervals[i][0]);
-            or = or.max(intervals[i][1]);
-            i += 1;
+        while it.peek().is_some_and(|iv| iv[0] <= r) {
+            let iv = it.next().unwrap();
+            l = l.min(iv[0]);
+            r = r.max(iv[1]);
         }
-
-        ans.push(vec![ol, or]);
-
-        while i < intervals.len() {
-            ans.push(intervals[i].clone());
-            i += 1;
-        }
-
+        ans.push(vec![l, r]);
+        ans.extend(it);
         ans
     }
 }
