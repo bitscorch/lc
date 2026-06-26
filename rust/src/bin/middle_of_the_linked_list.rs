@@ -56,17 +56,17 @@ struct Solution;
 // }
 impl Solution {
     pub fn middle_node(head: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
-        let mut n = -1;
-        let mut curr = head.clone();
+        let mut n = 0;
+        let mut curr = &head;
 
         while let Some(node) = curr {
-            curr = node.next;
+            curr = &node.next;
             n += 1;
         }
 
-        curr = head;
+        let mut curr = head;
 
-        for _ in 0..(n / 2 + n % 2) {
+        for _ in 0..(n / 2) {
             curr = curr.unwrap().next;
         }
 
