@@ -55,19 +55,18 @@ struct Solution;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-fn depth(acc: i32, node: &Option<Rc<RefCell<TreeNode>>>) -> i32 {
+fn depth(node: &Option<Rc<RefCell<TreeNode>>>) -> i32 {
     if let Some(node) = node {
-        let l = depth(acc + 1, &node.borrow().left);
-        let r = depth(acc + 1, &node.borrow().right);
-        l.max(r)
+        let n = node.borrow();
+        1 + depth(&n.left).max(depth(&n.right))
     } else {
-        acc
+        0
     }
 }
 
 impl Solution {
     pub fn max_depth(root: Option<Rc<RefCell<TreeNode>>>) -> i32 {
-        depth(0, &root)
+        depth(&root)
     }
 }
 
