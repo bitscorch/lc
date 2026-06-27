@@ -44,38 +44,41 @@ struct Solution;
 use std::collections::VecDeque;
 
 impl Solution {
-    pub fn update_matrix(mat: Vec<Vec<i32>>) -> Vec<Vec<i32>> {
-        const DIRS: [(isize, isize); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+    pub fn update_matrix(mut mat: Vec<Vec<i32>>) -> Vec<Vec<i32>> {
         let (rows, cols) = (mat.len(), mat[0].len());
-        let mut ans = mat;
-        let mut queue = VecDeque::with_capacity(rows * cols);
+        const MAX: i32 = i32::MAX - 1;
 
-        for i in 0..ans.len() {
-            for j in 0..ans[0].len() {
-                if ans[i][j] == 0 {
-                    queue.push_back((i, j));
-                } else {
-                    ans[i][j] = -1
-                }
+        for row in mat.iter_mut() {
+            for val in row.iter_mut() {
+                if *val == 1 {
+                    *val = MAX
+                };
             }
         }
 
-        while let Some((i, j)) = queue.pop_front() {
-            for (di, dj) in DIRS {
-                let Some(ni) = i.checked_add_signed(di) else {
+        for i in 0..rows {
+            for j in 0..cols {
+                if mat[i][j] == 0 {
                     continue;
                 };
-                let Some(nj) = j.checked_add_signed(dj) else {
-                    continue;
-                };
-                if ni < rows && nj < cols && ans[ni][nj] == -1 {
-                    ans[ni][nj] = ans[i][j] + 1;
-                    queue.push_back((ni, nj));
-                }
+                let up = if i > 0 { mat[i - 1][j] } else { MAX };
+                let left = if j > 0 { mat[i][j - 1] } else { MAX };
+                mat[i][j] = mat[i][j].min(up.min(left) + 1);
             }
         }
 
-        ans
+        for i in (0..rows).rev() {
+            for j in (0..cols).rev() {
+                if mat[i][j] == 0 {
+                    continue;
+                }
+                let down = if i + 1 < rows { mat[i + 1][j] } else { MAX };
+                let right = if j + 1 < cols { mat[i][j + 1] } else { MAX };
+                mat[i][j] = mat[i][j].min(down.min(right) + 1)
+            }
+        }
+
+        mat
     }
 }
 
