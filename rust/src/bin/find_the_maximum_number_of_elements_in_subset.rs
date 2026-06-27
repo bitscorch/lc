@@ -37,32 +37,25 @@
 
 struct Solution;
 
-use std::cell::Cell;
 use std::collections::HashMap;
 
 fn to_odd(n: i32) -> i32 {
     if n % 2 == 0 { n - 1 } else { n }
 }
 
-fn g(x: i64, counts: &HashMap<i64, (i32, Cell<i32>)>) -> i32 {
-    let Some((count, memo)) = counts.get(&x) else {
-        return 0;
-    };
+fn g(x: i32, counts: &HashMap<i32, i32>) -> i32 {
+    let count = counts.get(&x).copied().unwrap_or(0);
 
-    let cached = memo.get();
-    if cached != 0 {
-        return cached;
+    if count == 0 {
+        return 0;
     }
 
-    let result = if *count >= 2 {
+    if count >= 2 {
         let sub = g(x * x, counts);
         if sub > 0 { 2 + sub } else { 1 }
     } else {
         1
-    };
-
-    memo.set(result);
-    result
+    }
 }
 
 impl Solution {
@@ -78,18 +71,15 @@ impl Solution {
         //
         // 2 4 ... 16
 
-        let mut counts: HashMap<i64, (i32, Cell<i32>)> = HashMap::with_capacity(nums.len());
+        let mut counts: HashMap<i32, i32> = HashMap::with_capacity(nums.len());
         for num in nums {
-            counts
-                .entry(num as i64)
-                .or_insert_with(|| (0, Cell::new(0)))
-                .0 += 1;
+            *counts.entry(num).or_insert(0) += 1;
         }
 
         let mut best = 0;
-        for (&x, (count, _)) in &counts {
+        for (&x, &count) in &counts {
             if x == 1 {
-                best = best.max(to_odd(*count));
+                best = best.max(to_odd(count));
                 continue;
             }
             best = best.max(g(x, &counts));
