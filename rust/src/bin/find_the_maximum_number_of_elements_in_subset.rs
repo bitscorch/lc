@@ -39,6 +39,10 @@ struct Solution;
 
 use std::collections::HashMap;
 
+fn to_odd(n: i32) -> i32 {
+    if n % 2 == 0 { n - 1 } else { n }
+}
+
 impl Solution {
     pub fn maximum_length(nums: Vec<i32>) -> i32 {
         // counts hashmap, MAX (store hits if something hit, no way it's better)
@@ -53,55 +57,43 @@ impl Solution {
         // 2 4 ... 16
 
         let mut counts = HashMap::with_capacity(nums.len());
-        let mut max = 0;
         for num in nums {
-            max = max.max(num);
             *counts.entry(num).or_insert(0) += 1;
         }
 
         let mut keys: Vec<i32> = counts.keys().copied().collect();
-        keys.sort();
+        keys.sort_unstable();
 
-        let mut best_streak = 0;
+        let mut best = 0;
         for num in keys {
-            if !counts.contains_key(&num) {
+            let Some(&count) = counts.get(&num) else {
                 continue;
-            }
+            };
 
             if num == 1 {
-                if counts[&num] % 2 == 1 {
-                    best_streak = counts[&num];
-                } else {
-                    best_streak = counts[&num] - 1;
-                }
+                best = best.max(to_odd(count));
                 continue;
             }
 
-            if counts[&num] == 1 {
-                best_streak = best_streak.max(1);
+            if count == 1 {
+                best = best.max(1);
                 continue;
             }
 
             let (mut exp, mut streak) = (2, 2);
-
             while let Some(val) = counts.remove(&num.pow(exp)) {
                 if val == 1 {
                     streak += 1;
                     break;
-                } else {
-                    streak += 2;
                 }
+                streak += 2;
                 exp *= 2;
             }
 
-            if streak % 2 != 1 {
-                best_streak = best_streak.max(streak - 1);
-            } else {
-                best_streak = best_streak.max(streak);
-            }
+            best = best.max(to_odd(streak))
         }
 
-        best_streak
+        best
     }
 }
 
