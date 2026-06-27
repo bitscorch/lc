@@ -37,10 +37,32 @@
 
 struct Solution;
 
+use std::cell::Cell;
 use std::collections::HashMap;
 
 fn to_odd(n: i32) -> i32 {
     if n % 2 == 0 { n - 1 } else { n }
+}
+
+fn g(x: i64, counts: &HashMap<i64, (i32, Cell<i32>)>) -> i32 {
+    let Some((count, memo)) = counts.get(&x) else {
+        return 0;
+    };
+
+    let cached = memo.get();
+    if cached != 0 {
+        return cached;
+    }
+
+    let result = if *count >= 2 {
+        let sub = g(x * x, counts);
+        if sub > 0 { 2 + sub } else { 1 }
+    } else {
+        1
+    };
+
+    memo.set(result);
+    result
 }
 
 impl Solution {
@@ -56,43 +78,22 @@ impl Solution {
         //
         // 2 4 ... 16
 
-        let mut counts = HashMap::with_capacity(nums.len());
+        let mut counts: HashMap<i64, (i32, Cell<i32>)> = HashMap::with_capacity(nums.len());
         for num in nums {
-            *counts.entry(num).or_insert(0) += 1;
+            counts
+                .entry(num as i64)
+                .or_insert_with(|| (0, Cell::new(0)))
+                .0 += 1;
         }
-
-        let mut keys: Vec<i32> = counts.keys().copied().collect();
-        keys.sort_unstable();
 
         let mut best = 0;
-        for num in keys {
-            let Some(&count) = counts.get(&num) else {
-                continue;
-            };
-
-            if num == 1 {
-                best = best.max(to_odd(count));
+        for (&x, (count, _)) in &counts {
+            if x == 1 {
+                best = best.max(to_odd(*count));
                 continue;
             }
-
-            if count == 1 {
-                best = best.max(1);
-                continue;
-            }
-
-            let (mut exp, mut streak) = (2, 2);
-            while let Some(val) = counts.remove(&num.pow(exp)) {
-                if val == 1 {
-                    streak += 1;
-                    break;
-                }
-                streak += 2;
-                exp *= 2;
-            }
-
-            best = best.max(to_odd(streak))
+            best = best.max(g(x, &counts));
         }
-
         best
     }
 }
