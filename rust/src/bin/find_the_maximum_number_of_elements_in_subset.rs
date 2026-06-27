@@ -64,7 +64,6 @@ impl Solution {
 
         let mut best_streak = 0;
         for num in keys {
-            println!("{num}");
             if !counts.contains_key(&num) {
                 continue;
             }
@@ -100,8 +99,6 @@ impl Solution {
             } else {
                 best_streak = best_streak.max(streak);
             }
-
-            println!("{best_streak} | {streak}");
         }
 
         best_streak
