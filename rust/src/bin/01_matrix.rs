@@ -41,8 +41,6 @@
 
 struct Solution;
 
-use std::collections::VecDeque;
-
 impl Solution {
     pub fn update_matrix(mut mat: Vec<Vec<i32>>) -> Vec<Vec<i32>> {
         let (rows, cols) = (mat.len(), mat[0].len());
