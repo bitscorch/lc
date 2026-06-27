@@ -43,16 +43,12 @@ struct Solution;
 
 use std::collections::VecDeque;
 
-//   u
-// l . r
-//   d
-// stack then reverse when zero hit?
 impl Solution {
     pub fn update_matrix(mat: Vec<Vec<i32>>) -> Vec<Vec<i32>> {
-        const DIRS: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-        let (rows, cols) = (mat.len() as i32, mat[0].len() as i32);
+        const DIRS: [(isize, isize); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        let (rows, cols) = (mat.len(), mat[0].len());
         let mut ans = mat;
-        let mut queue = VecDeque::with_capacity((rows * cols) as usize);
+        let mut queue = VecDeque::with_capacity(rows * cols);
 
         for i in 0..ans.len() {
             for j in 0..ans[0].len() {
@@ -66,13 +62,13 @@ impl Solution {
 
         while let Some((i, j)) = queue.pop_front() {
             for (di, dj) in DIRS {
-                let ni = i as i32 + di;
-                let nj = j as i32 + dj;
-                if ni < 0 || ni >= rows || nj < 0 || nj >= cols {
+                let Some(ni) = i.checked_add_signed(di) else {
                     continue;
-                }
-                let (ni, nj) = (ni as usize, nj as usize);
-                if ans[ni][nj] == -1 {
+                };
+                let Some(nj) = j.checked_add_signed(dj) else {
+                    continue;
+                };
+                if ni < rows && nj < cols && ans[ni][nj] == -1 {
                     ans[ni][nj] = ans[i][j] + 1;
                     queue.push_back((ni, nj));
                 }
