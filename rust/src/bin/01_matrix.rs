@@ -49,41 +49,34 @@ use std::collections::VecDeque;
 // stack then reverse when zero hit?
 impl Solution {
     pub fn update_matrix(mat: Vec<Vec<i32>>) -> Vec<Vec<i32>> {
-        let mut queue = VecDeque::with_capacity(mat.len() * mat[0].len());
-        let mut ans = mat.clone();
+        const DIRS: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        let (rows, cols) = (mat.len() as i32, mat[0].len() as i32);
+        let mut ans = mat;
+        let mut queue = VecDeque::with_capacity((rows * cols) as usize);
 
-        for (i, row) in ans.iter_mut().enumerate() {
-            for (j, val) in row.iter_mut().enumerate() {
-                if *val == 0 {
+        for i in 0..ans.len() {
+            for j in 0..ans[0].len() {
+                if ans[i][j] == 0 {
                     queue.push_back((i, j));
                 } else {
-                    *val = -1;
+                    ans[i][j] = -1
                 }
             }
         }
 
-        // 0, 1, 2 -> len 3
-        // i < 3 - 1
         while let Some((i, j)) = queue.pop_front() {
-            if i != 0 && ans[i - 1][j] == -1 {
-                ans[i - 1][j] = ans[i][j] + 1;
-                queue.push_back((i - 1, j));
+            for (di, dj) in DIRS {
+                let ni = i as i32 + di;
+                let nj = j as i32 + dj;
+                if ni < 0 || ni >= rows || nj < 0 || nj >= cols {
+                    continue;
+                }
+                let (ni, nj) = (ni as usize, nj as usize);
+                if ans[ni][nj] == -1 {
+                    ans[ni][nj] = ans[i][j] + 1;
+                    queue.push_back((ni, nj));
+                }
             }
-            if i != ans.len() - 1 && ans[i + 1][j] == -1 {
-                ans[i + 1][j] = ans[i][j] + 1;
-                queue.push_back((i + 1, j));
-            }
-            if j != 0 && ans[i][j - 1] == -1 {
-                ans[i][j - 1] = ans[i][j] + 1;
-                queue.push_back((i, j - 1));
-            }
-            if j != ans[i].len() - 1 && ans[i][j + 1] == -1 {
-                ans[i][j + 1] = ans[i][j] + 1;
-                queue.push_back((i, j + 1));
-            }
-
-            // println!("{i} | {j}");
-            // println!("{ans:?}");
         }
 
         ans
