@@ -69,31 +69,28 @@ use std::rc::Rc;
 // l r l r
 impl Solution {
     pub fn level_order(root: Option<Rc<RefCell<TreeNode>>>) -> Vec<Vec<i32>> {
-        if root.is_none() {
-            return vec![];
-        }
-
         let mut ans = vec![];
-        let mut level = VecDeque::new();
-        level.push_back(root.unwrap());
+        let mut level = match root {
+            Some(r) => vec![r],
+            None => return ans,
+        };
 
         while !level.is_empty() {
-            let mut n_level = VecDeque::new();
-            let mut n_row = vec![];
-            while let Some(node) = level.pop_front() {
+            let mut row = Vec::with_capacity(level.len());
+            let mut next = vec![];
+            for node in &level {
                 let n = node.borrow();
-                n_row.push(n.val);
-                if let Some(left) = n.left.clone() {
-                    n_level.push_back(left);
+                row.push(n.val);
+                if let Some(l) = &n.left {
+                    next.push(l.clone());
                 }
-                if let Some(right) = n.right.clone() {
-                    n_level.push_back(right);
+                if let Some(r) = &n.right {
+                    next.push(r.clone());
                 }
             }
-            ans.push(n_row);
-            level = n_level;
+            ans.push(row);
+            level = next
         }
-
         ans
     }
 }
