@@ -51,25 +51,18 @@ struct Solution;
 impl Solution {
     pub fn number_of_substrings(s: String) -> i32 {
         let b = s.as_bytes();
-        let n = b.len();
         let mut ans = 0;
-        let mut counts = [0; 3];
-        let (mut p1, mut p2) = (0, 0);
+        let mut seen = [-1; 3];
 
-        loop {
-            if counts.iter().all(|&x| x > 0) {
-                ans += n - p2 + 1;
-                counts[(b[p1] - b'a') as usize] -= 1;
-                p1 += 1;
-            } else if p2 < n {
-                counts[(b[p2] - b'a') as usize] += 1;
-                p2 += 1;
-            } else {
-                break;
+        for i in 0..b.len() {
+            seen[(b[i] - b'a') as usize] = i as i32;
+
+            if seen[0] != -1 && seen[1] != -1 && seen[2] != -1 {
+                ans += 1 + seen[0].min(seen[1]).min(seen[2]);
             }
         }
 
-        ans as i32
+        ans
     }
 }
 
