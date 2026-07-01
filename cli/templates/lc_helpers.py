@@ -84,3 +84,54 @@ def to_level(root):
     while out and out[-1] is None:
         out.pop()
     return out
+
+
+class Node:
+    def __init__(self, val=0, neighbors=None):
+        self.val = val
+        self.neighbors = neighbors if neighbors is not None else []
+
+
+def graph_of(adj_list):
+    """Build an undirected graph from LeetCode's adjacency list (adj_list[i] =
+    neighbor values of the node with val i+1). Returns the node with val 1, or
+    None for an empty graph."""
+    if not adj_list:
+        return None
+    nodes = {i: Node(i) for i in range(1, len(adj_list) + 1)}
+    for i, neighbors in enumerate(adj_list, start=1):
+        nodes[i].neighbors = [nodes[j] for j in neighbors]
+    return nodes[1]
+
+
+def to_adj(node):
+    """Serialize a graph back to LeetCode's adjacency list (adj[i] = sorted
+    neighbor vals of node i+1), for comparing a cloned graph to the expected."""
+    if node is None:
+        return []
+    seen = {}
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        if cur.val in seen:
+            continue
+        seen[cur.val] = cur
+        stack.extend(nb for nb in cur.neighbors if nb.val not in seen)
+    return [sorted(nb.val for nb in seen[v].neighbors) for v in range(1, max(seen) + 1)]
+
+
+def is_deep_copy(original, clone):
+    """True if `clone` shares no Node objects with `original` — i.e. a real deep
+    copy, not the original graph handed back unchanged."""
+
+    def ids(node):
+        seen, stack = set(), [node] if node else []
+        while stack:
+            cur = stack.pop()
+            if id(cur) in seen:
+                continue
+            seen.add(id(cur))
+            stack.extend(nb for nb in cur.neighbors if id(nb) not in seen)
+        return seen
+
+    return ids(original).isdisjoint(ids(clone))
