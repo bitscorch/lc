@@ -42,24 +42,25 @@ struct Solution;
 
 // if there is no 0 this is simple
 // prod in var and then prod / num
+// better than count 0's solution
+// do a two pass left and right counting
+// (like prefix-sum)
 impl Solution {
     pub fn product_except_self(nums: Vec<i32>) -> Vec<i32> {
-        let zeroes = nums.iter().filter(|&&x| x == 0).count();
-        if zeroes > 1 {
-            return vec![0; nums.len()];
+        let n = nums.len();
+        let mut ans = vec![1; n];
+
+        for i in 1..n {
+            ans[i] = ans[i - 1] * nums[i - 1];
         }
 
-        let prod: i32 = nums.iter().filter(|&&x| x != 0).product();
+        let mut right = 1;
+        for i in (0..n).rev() {
+            ans[i] *= right;
+            right *= nums[i];
+        }
 
-        nums.iter()
-            .map(|&num| {
-                if zeroes == 1 {
-                    if num == 0 { prod } else { 0 }
-                } else {
-                    prod / num
-                }
-            })
-            .collect()
+        ans
     }
 }
 
