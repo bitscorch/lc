@@ -46,37 +46,23 @@ struct Solution;
 
 impl Solution {
     pub fn coin_change(coins: Vec<i32>, amount: i32) -> i32 {
-        if amount == 0 {
-            return 0;
-        }
-        let mut dp = vec![i32::MAX; amount as usize + 1];
-
+        let amount = amount as usize;
+        let mut dp = vec![amount + 1; amount + 1];
         dp[0] = 0;
-        for &coin in &coins {
-            if coin > amount {
-                continue;
+
+        for i in 1..=amount {
+            for &coin in &coins {
+                let coin = coin as usize;
+                if coin <= i {
+                    dp[i] = dp[i].min(dp[i - coin] + 1);
+                }
             }
-            dp[coin as usize] = 1;
         }
 
-        for i in 1..=amount as usize {
-            let min = coins
-                .iter()
-                .filter(|c| i as i32 - **c > 0)
-                .map(|c| dp[i - *c as usize])
-                .min();
-
-            match min {
-                Some(i32::MAX) | None => continue,
-                _ => {}
-            }
-            dp[i] = dp[i].min(1 + min.unwrap());
-        }
-
-        if dp[amount as usize] < i32::MAX {
-            dp[amount as usize]
-        } else {
+        if dp[amount] > amount {
             -1
+        } else {
+            dp[amount] as i32
         }
     }
 }
