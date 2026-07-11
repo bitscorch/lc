@@ -1,0 +1,17 @@
+[project]
+name = "lc"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+# Solution files are named after the problem (e.g. coin_change.py), not
+# test_*.py, so widen discovery to treat every module here as a test file.
+# conftest.py marks this dir as rootdir, so `from lc_helpers import ...` resolves.
+testpaths = ["."]
+python_files = ["*.py"]

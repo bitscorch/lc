@@ -523,6 +523,17 @@ fn cmd_new(root: &Path, slug: &str, language: Language) -> Result<()> {
             if !pyrightconfig.exists() {
                 fs::write(&pyrightconfig, include_str!("../templates/pyrightconfig.json"))?;
             }
+            // pyproject declares pytest (dev) and widens test discovery to the
+            // problem-named solution files. On first creation, `uv sync` builds
+            // the .venv that pyrightconfig.json points at.
+            let pyproject = lang_dir.join("pyproject.toml");
+            if !pyproject.exists() {
+                fs::write(&pyproject, include_str!("../templates/pyproject.toml"))?;
+                Command::new("uv")
+                    .arg("sync")
+                    .current_dir(&lang_dir)
+                    .status()?;
+            }
             (lang_dir.clone(), lang_dir)
         }
     };
