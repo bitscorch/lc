@@ -57,18 +57,18 @@ use std::collections::VecDeque;
 impl Solution {
     pub fn oranges_rotting(mut grid: Vec<Vec<i32>>) -> i32 {
         let (rows, cols) = (grid.len(), grid[0].len());
-        let mut stack = VecDeque::with_capacity(rows * cols);
+        let mut queue = VecDeque::with_capacity(rows * cols);
         let mut ans = 0;
 
         for (i, row) in grid.iter().enumerate() {
             for (j, cell) in row.iter().enumerate() {
                 if *cell == 2 {
-                    stack.push_back((i, j, 0));
+                    queue.push_back((i, j, 0));
                 }
             }
         }
 
-        while let Some((i, j, turn)) = stack.pop_front() {
+        while let Some((i, j, turn)) = queue.pop_front() {
             ans = ans.max(turn);
 
             for (di, dj) in [(-1isize, 0), (1, 0), (0, -1), (0, 1)] {
@@ -79,20 +79,16 @@ impl Solution {
 
                 if ni < rows && nj < cols && grid[ni][nj] == 1 {
                     grid[ni][nj] = 2;
-                    stack.push_back((ni, nj, turn + 1));
+                    queue.push_back((ni, nj, turn + 1));
                 }
             }
         }
 
-        for row in grid.iter() {
-            for cell in row.iter() {
-                if *cell == 1 {
-                    return -1;
-                }
-            }
+        if grid.iter().flatten().any(|&c| c == 1) {
+            -1
+        } else {
+            ans
         }
-
-        ans
     }
 }
 
