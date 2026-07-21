@@ -44,32 +44,38 @@
 
 struct Solution;
 
-fn flood_fill(grid: &Vec<Vec<char>>, vis: &mut Vec<Vec<bool>>, i: usize, j: usize) {
-    if vis[i][j] {
-        return;
-    } else if grid[i][j] == '0' {
-        vis[i][j] = true;
-        return;
-    }
-
-    vis[i][j] = true;
-
-    flood_fill(grid, vis, (i + 1).min(grid.len() - 1), j);
-    flood_fill(grid, vis, i.saturating_sub(1), j);
-    flood_fill(grid, vis, i, (j + 1).min(grid[0].len() - 1));
-    flood_fill(grid, vis, i, j.saturating_sub(1));
-}
-
 impl Solution {
     pub fn num_islands(grid: Vec<Vec<char>>) -> i32 {
+        let (rows, cols) = (grid.len(), grid[0].len());
+        let mut vis = vec![vec![false; cols]; rows];
         let mut islands = 0;
-        let mut vis = vec![vec![false; grid[0].len()]; grid.len()];
 
-        for i in 0..grid.len() {
-            for j in 0..grid[0].len() {
-                if (grid[i][j] == '1') & !vis[i][j] {
-                    islands += 1;
-                    flood_fill(&grid, &mut vis, i, j);
+        let mut stack = Vec::with_capacity(rows * cols);
+
+        for i in 0..rows {
+            for j in 0..cols {
+                if (grid[i][j] == '0') || vis[i][j] {
+                    continue;
+                }
+
+                islands += 1;
+                // flood fill on the heap
+                vis[i][j] = true;
+                stack.push((i, j));
+
+                while let Some((i, j)) = stack.pop() {
+                    for (di, dj) in [(-1isize, 0), (1, 0), (0, -1), (0, 1)] {
+                        let (Some(ni), Some(nj)) =
+                            (i.checked_add_signed(di), j.checked_add_signed(dj))
+                        else {
+                            continue;
+                        };
+
+                        if ni < rows && nj < cols && grid[ni][nj] == '1' && !vis[ni][nj] {
+                            vis[ni][nj] = true;
+                            stack.push((ni, nj));
+                        }
+                    }
                 }
             }
         }
