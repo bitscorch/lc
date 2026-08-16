@@ -38,24 +38,23 @@ struct Solution;
 // [2] -> [3, 4] => [2, 3] -> [4] | [2, 4] -> [] => X
 // [3] -> [4] => [3, 4] -> [] => X
 // [4] => X
-fn backtrack(nums: &[i32], k: usize, cur: &mut Vec<i32>, res: &mut Vec<Vec<i32>>) {
+fn backtrack(start: i32, n: i32, k: usize, cur: &mut Vec<i32>, res: &mut Vec<Vec<i32>>) {
     if k == cur.len() {
         res.push(cur.clone());
         return;
     }
 
-    for i in 0..nums.len() {
-        cur.push(nums[i]);
-        backtrack(&nums[i + 1..], k, cur, res);
+    for num in start..=n - (k - cur.len()) as i32 + 1 {
+        cur.push(num);
+        backtrack(num + 1, n, k, cur, res);
         cur.pop();
     }
 }
 
 impl Solution {
     pub fn combine(n: i32, k: i32) -> Vec<Vec<i32>> {
-        let (mut cur, mut res) = (vec![], vec![]);
-        let nums: Vec<i32> = (1..=n).collect();
-        backtrack(&nums, k as usize, &mut cur, &mut res);
+        let mut res = vec![];
+        backtrack(1, n, k as usize, &mut vec![], &mut res);
         res
     }
 }
