@@ -2,40 +2,47 @@
 binary trees). LeetCode's judge defines ListNode/TreeNode itself, so `lc submit`
 strips these imports — they exist only so solutions run and tests pass locally."""
 
+from __future__ import annotations
+
 from collections import deque
 
 
 class ListNode:
-    def __init__(self, val=0, next=None):
+    def __init__(self, val: int = 0, next: ListNode | None = None) -> None:
         self.val = val
         self.next = next
 
 
 class TreeNode:
-    def __init__(self, val=0, left=None, right=None):
+    def __init__(
+        self,
+        val: int = 0,
+        left: TreeNode | None = None,
+        right: TreeNode | None = None,
+    ) -> None:
         self.val = val
         self.left = left
         self.right = right
 
 
-def list_of(values):
+def list_of(values: list[int]) -> ListNode | None:
     """Build a linked list from a list (head = first element)."""
-    head = None
+    head: ListNode | None = None
     for v in reversed(values):
         head = ListNode(v, head)
     return head
 
 
-def to_list(node):
+def to_list(node: ListNode | None) -> list[int]:
     """Collect a linked list back into a plain list."""
-    out = []
+    out: list[int] = []
     while node:
         out.append(node.val)
         node = node.next
     return out
 
 
-def cyclic_list(values, pos):
+def cyclic_list(values: list[int], pos: int) -> ListNode | None:
     """Build a linked list, then link the tail back to the node at index `pos`
     (`pos < 0` = no cycle). For cycle-detection problems, where the example's
     `pos` describes the cycle but is NOT a function argument — auto-generated
@@ -51,13 +58,15 @@ def cyclic_list(values, pos):
     return head
 
 
-def tree_of(values):
+def tree_of(values: list[int | None]) -> TreeNode | None:
     """Build a tree from LeetCode's level-order list (None = a missing node)."""
     if not values or values[0] is None:
         return None
     it = iter(values)
-    root = TreeNode(next(it))
-    queue = deque([root])
+    first = next(it)
+    assert first is not None  # guaranteed by the guard above
+    root = TreeNode(first)
+    queue: deque[TreeNode] = deque([root])
     while queue:
         node = queue.popleft()
         for side in ("left", "right"):
@@ -69,10 +78,10 @@ def tree_of(values):
     return root
 
 
-def to_level(root):
+def to_level(root: TreeNode | None) -> list[int | None]:
     """Serialize a tree to LeetCode's level-order list, trailing Nones trimmed."""
-    out = []
-    queue = deque([root])
+    out: list[int | None] = []
+    queue: deque[TreeNode | None] = deque([root])
     while queue:
         node = queue.popleft()
         if node is None:
@@ -87,29 +96,29 @@ def to_level(root):
 
 
 class Node:
-    def __init__(self, val=0, neighbors=None):
+    def __init__(self, val: int = 0, neighbors: list[Node] | None = None) -> None:
         self.val = val
-        self.neighbors = neighbors if neighbors is not None else []
+        self.neighbors: list[Node] = neighbors if neighbors is not None else []
 
 
-def graph_of(adj_list):
+def graph_of(adj_list: list[list[int]]) -> Node | None:
     """Build an undirected graph from LeetCode's adjacency list (adj_list[i] =
     neighbor values of the node with val i+1). Returns the node with val 1, or
     None for an empty graph."""
     if not adj_list:
         return None
-    nodes = {i: Node(i) for i in range(1, len(adj_list) + 1)}
+    nodes: dict[int, Node] = {i: Node(i) for i in range(1, len(adj_list) + 1)}
     for i, neighbors in enumerate(adj_list, start=1):
         nodes[i].neighbors = [nodes[j] for j in neighbors]
     return nodes[1]
 
 
-def to_adj(node):
+def to_adj(node: Node | None) -> list[list[int]]:
     """Serialize a graph back to LeetCode's adjacency list (adj[i] = sorted
     neighbor vals of node i+1), for comparing a cloned graph to the expected."""
     if node is None:
         return []
-    seen = {}
+    seen: dict[int, Node] = {}
     stack = [node]
     while stack:
         cur = stack.pop()
@@ -120,12 +129,13 @@ def to_adj(node):
     return [sorted(nb.val for nb in seen[v].neighbors) for v in range(1, max(seen) + 1)]
 
 
-def is_deep_copy(original, clone):
+def is_deep_copy(original: Node | None, clone: Node | None) -> bool:
     """True if `clone` shares no Node objects with `original` — i.e. a real deep
     copy, not the original graph handed back unchanged."""
 
-    def ids(node):
-        seen, stack = set(), [node] if node else []
+    def ids(node: Node | None) -> set[int]:
+        seen: set[int] = set()
+        stack: list[Node] = [node] if node else []
         while stack:
             cur = stack.pop()
             if id(cur) in seen:
